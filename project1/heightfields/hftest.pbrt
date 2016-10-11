@@ -1,0 +1,26 @@
+Film "image" "string filename" ["hftest.exr"] 
+"integer xresolution" [256] "integer yresolution" [256] 
+
+Sampler "bestcandidate" "integer pixelsamples" [2] 
+
+LookAt 0 0 0 0 0 1  0 1 0
+Camera "perspective" "float fov" [45]
+
+WorldBegin
+
+AttributeBegin
+CoordSysTransform "camera"
+LightSource "point" "color I" [8 8 8]
+AttributeEnd
+
+Material "matte" "color Kd" [.4 .2 .1]
+AttributeBegin
+Translate -.6 -.2 2
+Rotate 10 0 1 0
+Rotate -20 0 0 1
+Rotate 30 1 0 0
+
+Include "hf4x4.pbrt"
+AttributeEnd
+
+WorldEnd

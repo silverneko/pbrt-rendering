@@ -1,0 +1,28 @@
+Film "image" "string filename" ["texture.exr"] 
+"integer xresolution" [400] "integer yresolution" [400]
+
+Sampler "bestcandidate" "integer pixelsamples" [4] 
+
+LookAt 0 0 0 0 0 1 0 1 0
+Camera "perspective" "float fov" [50]
+
+WorldBegin
+
+Translate -2 -1 4
+Rotate 35 1 0 0
+#Rotate 45 0 0 1
+
+Texture "grid" "color" "imagemap" "string filename" "grid.exr"
+Material "matte" "texture Kd" "grid" "color Kd" [.4 .2 .1]
+
+AttributeBegin
+CoordSysTransform "camera"
+LightSource "point" "color I" [25 25 25]
+AttributeEnd
+
+AttributeBegin
+Scale 4 4 .7
+Include "land.pbrt"
+AttributeEnd
+
+WorldEnd

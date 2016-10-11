@@ -1,0 +1,42 @@
+Film "image" "string filename" ["landsea-1.exr"] 
+"integer xresolution" [400] "integer yresolution" [400] 
+
+Sampler "bestcandidate" "integer pixelsamples" [4] 
+
+LookAt 0 0 0 0 0 1 0 1 0
+Camera "perspective" "float fov" [50]
+
+WorldBegin
+
+Translate -2 -2 1.5
+Rotate 75 1 0 0
+Rotate 25 0 0 1
+
+Texture "sky" "color" "imagemap" "string filename" "skylight-morn.exr"
+Material "matte" "texture Kd" "sky" "color Kd" [.4 .2 .1]
+
+AttributeBegin
+Translate 2 1.5 0.25
+Rotate 25 0 0 1
+Scale 7 7 6
+Shape "cylinder"
+AttributeEnd
+
+AttributeBegin
+CoordSysTransform "camera"
+LightSource "point" "color I" [55 55 55]
+AttributeEnd
+
+AttributeBegin
+Material "matte" "color Kd" [.4 .2 .1]
+Scale 8 8 .7
+Include "land.pbrt"
+AttributeEnd
+
+AttributeBegin
+Material "mirror"
+Scale 8 8 .1
+Include "sea.pbrt"
+AttributeEnd
+
+WorldEnd
