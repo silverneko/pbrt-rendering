@@ -26,7 +26,7 @@ MARCH=-m64
 # change this to -g3 for debug builds
 OPT=-O2
 # comment out this line to enable assertions at runtime
-DEFS += -DNDEBUG
+# DEFS += -DNDEBUG
 
 #########################################################################
 # nothing below this line should need to be changed (usually)
