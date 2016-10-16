@@ -103,6 +103,7 @@
 #include "shapes/cylinder.h"
 #include "shapes/disk.h"
 #include "shapes/heightfield.h"
+#include "shapes/heightfield2.h"
 #include "shapes/hyperboloid.h"
 #include "shapes/loopsubdiv.h"
 #include "shapes/nurbs.h"
@@ -344,6 +345,9 @@ Reference<Shape> MakeShape(const string &name,
     else if (name == "heightfield")
         s = CreateHeightfieldShape(object2world, world2object, reverseOrientation,
                                    paramSet);
+    else if (name == "heightfield2")
+        s = CreateHeightfield2Shape(object2world, world2object, reverseOrientation,
+                                    paramSet);
     else if (name == "loopsubdiv")
         s = CreateLoopSubdivShape(object2world, world2object, reverseOrientation,
                                   paramSet);
