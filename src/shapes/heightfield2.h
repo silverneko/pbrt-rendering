@@ -46,15 +46,31 @@ public:
     Heightfield2(const Transform *o2w, const Transform *w2o,
                  bool ro, int nu, int nv, const float *zs);
     ~Heightfield2();
-    bool CanIntersect() const;
+    bool CanIntersect() const { return true;}
     bool Intersect(const Ray &ray, float *tHit,
                    float *rayEpsilon, DifferentialGeometry *dg) const;
     bool IntersectP(const Ray &ray) const;
     BBox ObjectBound() const;
+    void GetShadingGeometry(const Transform &obj2world,
+            const DifferentialGeometry &dg,
+            DifferentialGeometry *dgShading) const;
 private:
     // Heightfield2 Private Data
     float *z;
     int nx, ny;
+    int nVoxels[2];
+    float width[2], invWidth[2];
+    vector<Reference<Shape> > triangle; // Triangles are in World Space
+    BBox objectBounds;
+
+    int posToVoxel(const Point &P, int axis) const {
+        int v = Float2Int(P[axis] * invWidth[axis]);
+        return Clamp(v, 0, nVoxels[axis] - 1);
+    }
+    float voxelToPos(int p, int axis) const {
+        return p * width[axis];
+    }
+    int offset(int x, int y) const { return x + y * invWidth[0];}
 };
 
 

@@ -346,8 +346,8 @@ Reference<Shape> MakeShape(const string &name,
         s = CreateHeightfieldShape(object2world, world2object, reverseOrientation,
                                    paramSet);
     else if (name == "heightfield2")
-        s = CreateHeightfield2Shape(object2world, world2object, reverseOrientation,
-                                    paramSet);
+	s = CreateHeightfield2Shape(object2world, world2object, reverseOrientation,
+				   paramSet);
     else if (name == "loopsubdiv")
         s = CreateLoopSubdivShape(object2world, world2object, reverseOrientation,
                                   paramSet);
