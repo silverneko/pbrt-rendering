@@ -282,7 +282,6 @@ void Heightfield2::GetShadingGeometry(const Transform &obj2world,
         const DifferentialGeometry &dg,
         DifferentialGeometry *dgShading) const {
     dg.shape->GetShadingGeometry(obj2world, dg, dgShading);
-    // *dgShading = dg;
     return;
 }
 

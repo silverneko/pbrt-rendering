@@ -1,0 +1,41 @@
+pbrt version 2.0.0 of Oct 19 2016 at 20:22:14 [Detected 8 core(s)]
+Copyright (c)1998-2014 Matt Pharr and Greg Humphreys.
+The source code to pbrt (but *not* the book contents) is covered by the BSD License.
+See the file LICENSE.txt for the conditions of the license.
+../../heightfields2_input/hf4x4.pbrt(8): Error: Scene description must be inside 
+    world block; "Shape" not allowed. Ignoring. 
+../../heightfields2_input/hftest.pbrt(6): Warning: This version of pbrt fixes a bug 
+    in the LookAt transformation. If your rendered images unexpectedly change, add 
+    a "Scale -1 1 1" to the start of your scene file. 
+Rendering: [++++++++++++++++++++++++++++++++++++++++++++++++]  (0.1s)       
+../../heightfields2_input/land.pbrt(68): Error: Scene description must be inside 
+    world block; "Shape" not allowed. Ignoring. 
+../../heightfields2_input/landsea-0.pbrt(6): Warning: This version of pbrt fixes a 
+    bug in the LookAt transformation. If your rendered images unexpectedly change, 
+    add a "Scale -1 1 1" to the start of your scene file. 
+../../heightfields2_input/landsea-0.pbrt(21): Warning: Parameter "Kd" not used 
+Rendering: [++++++++++++++++++++++++++++++++++++++++++++++++]  (0.6s)       
+../../heightfields2_input/landsea-1.pbrt(6): Warning: This version of pbrt fixes a 
+    bug in the LookAt transformation. If your rendered images unexpectedly change, 
+    add a "Scale -1 1 1" to the start of your scene file. 
+../../heightfields2_input/landsea-1.pbrt(23): Warning: Parameter "Kd" not used 
+Rendering: [++++++++++++++++++++++++++++++++++++++++++++++++]  (0.5s)       
+../../heightfields2_input/landsea-2.pbrt(6): Warning: This version of pbrt fixes a 
+    bug in the LookAt transformation. If your rendered images unexpectedly change, 
+    add a "Scale -1 1 1" to the start of your scene file. 
+../../heightfields2_input/landsea-2.pbrt(24): Warning: Parameter "Kd" not used 
+Rendering: [++++++++++++++++++++++++++++++++++++++++++++++++]  (0.4s)       
+../../heightfields2_input/landsea-big.pbrt(6): Warning: This version of pbrt fixes 
+    a bug in the LookAt transformation. If your rendered images unexpectedly 
+    change, add a "Scale -1 1 1" to the start of your scene file. 
+../../heightfields2_input/landsea-big.pbrt(22): Warning: Parameter "Kd" not used 
+Rendering: [++++++++++++++++++++++++++++++++++++++++++++++++]  (1.0s)       
+../../heightfields2_input/sea-l.pbrt(1004): Error: Scene description must be inside 
+    world block; "Shape" not allowed. Ignoring. 
+../../heightfields2_input/sea.pbrt(67): Error: Scene description must be inside 
+    world block; "Shape" not allowed. Ignoring. 
+../../heightfields2_input/texture.pbrt(6): Warning: This version of pbrt fixes a 
+    bug in the LookAt transformation. If your rendered images unexpectedly change, 
+    add a "Scale -1 1 1" to the start of your scene file. 
+../../heightfields2_input/texture.pbrt(26): Warning: Parameter "Kd" not used 
+Rendering: [++++++++++++++++++++++++++++++++++++++++++++++++]  (0.3s)   
