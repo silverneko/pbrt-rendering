@@ -78,29 +78,29 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
       }
 
       // Compute heightfield vertex normals
+      for (y = 0; y < ny-1; ++y) {
+        for (x = 0; x < nx-1; ++x) {
+#define VERT(x,y) ((x)+(y)*nx)
+          const int x1 = x + 1, y1 = y;
+          const int x2 = x + 1, y2 = y + 1;
+          const int x3 = x, y3 = y + 1;
+          Vector e1 = P[VERT(x1, y1)] - P[VERT(x, y)];
+          Vector e2 = P[VERT(x2, y2)] - P[VERT(x, y)];
+          Vector e3 = P[VERT(x3, y3)] - P[VERT(x, y)];
+          Normal n1(Cross(e1, e2));
+          Normal n2(Cross(e2, e3));
+          N[VERT(x, y)] += n1 + n2;
+          N[VERT(x1, y1)] += n1;
+          N[VERT(x2, y2)] += n1 + n2;
+          N[VERT(x3, y3)] += n2;
+#undef VERT
+        }
+      }
       pos = 0;
       for (y = 0; y < ny; ++y) {
         for (x = 0; x < nx; ++x) {
-#define VERT(x,y) ((x)+(y)*nx)
-          const int dir[][2] = {
-            {1, 0}, {1, 1}, {0, 1},
-            {-1, 0}, {-1, -1}, {0, -1}, {1, 0}
-          };
-          Vector sumN;
-          for (int i = 0; i < 6; ++i) {
-            const int x1 = x + dir[i][0], y1 = y + dir[i][1];
-            const int x2 = x + dir[i+1][0], y2 = y + dir[i+1][1];
-            if (x1 < 0 || x1 >= nx || y1 < 0 || y1 >= ny ||
-                x2 < 0 || x2 >= nx || y2 < 0 || y2 >= ny) {
-              continue;
-            }
-            Vector e1 = P[VERT(x1, y1)] - P[VERT(x, y)];
-            Vector e2 = P[VERT(x2, y2)] - P[VERT(x, y)];
-            sumN += Cross(e1, e2);
-          }
-          N[pos] = Normal(Normalize(sumN));
+          N[pos] = Normalize(N[pos]);
           ++pos;
-#undef VERT
         }
       }
 
@@ -281,84 +281,9 @@ bool Heightfield2::IntersectP(const Ray &rayWorld) const {
 void Heightfield2::GetShadingGeometry(const Transform &obj2world,
         const DifferentialGeometry &dg,
         DifferentialGeometry *dgShading) const {
-    return dg.shape->GetShadingGeometry(obj2world, dg, dgShading);
-    // TODO: Implement this
-    // Copied from trianglemesh.cpp
-    // Look into the book `pbrt` page 142 for more details.
-    /*
-    if (!mesh->n && !mesh->s) {
-        *dgShading = dg;
-        return;
-    }
-    // Initialize _Triangle_ shading geometry with _n_ and _s_
-
-    // Compute barycentric coordinates for point
-    float b[3];
-
-    // Initialize _A_ and _C_ matrices for barycentrics
-    float uv[3][2];
-    GetUVs(uv);
-    float A[2][2] =
-        { { uv[1][0] - uv[0][0], uv[2][0] - uv[0][0] },
-          { uv[1][1] - uv[0][1], uv[2][1] - uv[0][1] } };
-    float C[2] = { dg.u - uv[0][0], dg.v - uv[0][1] };
-    if (!SolveLinearSystem2x2(A, C, &b[1], &b[2])) {
-        // Handle degenerate parametric mapping
-        b[0] = b[1] = b[2] = 1.f/3.f;
-    }
-    else
-        b[0] = 1.f - b[1] - b[2];
-
-    // Use _n_ and _s_ to compute shading tangents for triangle, _ss_ and _ts_
-    Normal ns;
-    Vector ss, ts;
-    if (mesh->n) ns = Normalize(obj2world(b[0] * mesh->n[v[0]] +
-                                          b[1] * mesh->n[v[1]] +
-                                          b[2] * mesh->n[v[2]]));
-    else   ns = dg.nn;
-    if (mesh->s) ss = Normalize(obj2world(b[0] * mesh->s[v[0]] +
-                                          b[1] * mesh->s[v[1]] +
-                                          b[2] * mesh->s[v[2]]));
-    else   ss = Normalize(dg.dpdu);
-
-    ts = Cross(ss, ns);
-    if (ts.LengthSquared() > 0.f) {
-        ts = Normalize(ts);
-        ss = Cross(ts, ns);
-    }
-    else
-        CoordinateSystem((Vector)ns, &ss, &ts);
-    Normal dndu, dndv;
-
-    // Compute $\dndu$ and $\dndv$ for triangle shading geometry
-    if (mesh->n) {
-        float uvs[3][2];
-        GetUVs(uvs);
-        // Compute deltas for triangle partial derivatives of normal
-        float du1 = uvs[0][0] - uvs[2][0];
-        float du2 = uvs[1][0] - uvs[2][0];
-        float dv1 = uvs[0][1] - uvs[2][1];
-        float dv2 = uvs[1][1] - uvs[2][1];
-        Normal dn1 = mesh->n[v[0]] - mesh->n[v[2]];
-        Normal dn2 = mesh->n[v[1]] - mesh->n[v[2]];
-        float determinant = du1 * dv2 - dv1 * du2;
-        if (determinant == 0.f)
-            dndu = dndv = Normal(0,0,0);
-        else {
-            float invdet = 1.f / determinant;
-            dndu = ( dv2 * dn1 - dv1 * dn2) * invdet;
-            dndv = (-du2 * dn1 + du1 * dn2) * invdet;
-        }
-    }
-    else
-        dndu = dndv = Normal(0,0,0);
-    *dgShading = DifferentialGeometry(dg.p, ss, ts,
-        obj2world(dndu), obj2world(dndv),
-        dg.u, dg.v, dg.shape);
-    dgShading->dudx = dg.dudx;  dgShading->dvdx = dg.dvdx;
-    dgShading->dudy = dg.dudy;  dgShading->dvdy = dg.dvdy;
-    dgShading->dpdx = dg.dpdx;  dgShading->dpdy = dg.dpdy;
-    */
+    dg.shape->GetShadingGeometry(obj2world, dg, dgShading);
+    // *dgShading = dg;
+    return;
 }
 
 
@@ -372,5 +297,3 @@ Heightfield2 *CreateHeightfield2Shape(const Transform *o2w,
     Assert(nu != -1 && nv != -1 && Pz != NULL);
     return new Heightfield2(o2w, w2o, reverseOrientation, nu, nv, Pz);
 }
-
-
