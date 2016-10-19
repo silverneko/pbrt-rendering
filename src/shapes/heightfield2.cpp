@@ -62,6 +62,7 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
       const int ntris = 2*(nx-1)*(ny-1);
       int *verts = new int[3*ntris];
       Point *P = new Point[nx*ny];
+      Normal *N = new Normal[nx*ny];
       float *uvs = new float[2*nx*ny];
       int nverts = nx*ny;
       int x, y;
@@ -74,6 +75,33 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
               P[pos].z = z[pos];
               ++pos;
           }
+      }
+
+      // Compute heightfield vertex normals
+      pos = 0;
+      for (y = 0; y < ny; ++y) {
+        for (x = 0; x < nx; ++x) {
+#define VERT(x,y) ((x)+(y)*nx)
+          const int dir[][2] = {
+            {1, 0}, {1, 1}, {0, 1},
+            {-1, 0}, {-1, -1}, {0, -1}, {1, 0}
+          };
+          Vector sumN;
+          for (int i = 0; i < 6; ++i) {
+            const int x1 = x + dir[i][0], y1 = y + dir[i][1];
+            const int x2 = x + dir[i+1][0], y2 = y + dir[i+1][1];
+            if (x1 < 0 || x1 >= nx || y1 < 0 || y1 >= ny ||
+                x2 < 0 || x2 >= nx || y2 < 0 || y2 >= ny) {
+              continue;
+            }
+            Vector e1 = P[VERT(x1, y1)] - P[VERT(x, y)];
+            Vector e2 = P[VERT(x2, y2)] - P[VERT(x, y)];
+            sumN += Cross(e1, e2);
+          }
+          N[pos] = Normal(Normalize(sumN));
+          ++pos;
+#undef VERT
+        }
       }
 
       // Fill in heightfield vertex offset array
@@ -95,6 +123,7 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
       paramSet.AddInt("indices", verts, 3*ntris);
       paramSet.AddFloat("uv", uvs, 2 * nverts);
       paramSet.AddPoint("P", P, nverts);
+      paramSet.AddNormal("N", N, nverts);
       Reference<TriangleMesh> TM =
         CreateTriangleMeshShape(ObjectToWorld, WorldToObject,
                                 ReverseOrientation, paramSet);
@@ -103,6 +132,7 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
       delete[] P;
       delete[] uvs;
       delete[] verts;
+      delete[] N;
     }
 }
 
@@ -251,10 +281,10 @@ bool Heightfield2::IntersectP(const Ray &rayWorld) const {
 void Heightfield2::GetShadingGeometry(const Transform &obj2world,
         const DifferentialGeometry &dg,
         DifferentialGeometry *dgShading) const {
-    *dgShading = dg;
-    return ;
+    return dg.shape->GetShadingGeometry(obj2world, dg, dgShading);
     // TODO: Implement this
     // Copied from trianglemesh.cpp
+    // Look into the book `pbrt` page 142 for more details.
     /*
     if (!mesh->n && !mesh->s) {
         *dgShading = dg;
@@ -290,7 +320,7 @@ void Heightfield2::GetShadingGeometry(const Transform &obj2world,
                                           b[1] * mesh->s[v[1]] +
                                           b[2] * mesh->s[v[2]]));
     else   ss = Normalize(dg.dpdu);
-    
+
     ts = Cross(ss, ns);
     if (ts.LengthSquared() > 0.f) {
         ts = Normalize(ts);
