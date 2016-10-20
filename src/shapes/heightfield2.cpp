@@ -45,8 +45,7 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
     nVoxels[0] = nx - 1;
     nVoxels[1] = ny - 1;
     for (int i = 0; i < 2; ++i) {
-      invWidth[i] = nVoxels[i];
-      width[i] = (invWidth[i] == 0.f ? 0.f : 1.0 / invWidth[i]);
+      width[i] = (nVoxels[i] == 0 ? 0.f : 1.0 / nVoxels[i]);
     }
     z = new float[nx*ny];
     memcpy(z, zs, nx*ny*sizeof(float));
@@ -94,13 +93,6 @@ Heightfield2::Heightfield2(const Transform *o2w, const Transform *w2o,
           N[VERT(x2, y2)] += n1 + n2;
           N[VERT(x3, y3)] += n2;
 #undef VERT
-        }
-      }
-      pos = 0;
-      for (y = 0; y < ny; ++y) {
-        for (x = 0; x < nx; ++x) {
-          N[pos] = Normalize(N[pos]);
-          ++pos;
         }
       }
 
@@ -199,6 +191,7 @@ bool Heightfield2::Intersect(const Ray &rayWorld, float *tHit,
           hitSomething |= true;
           rayW.maxt = *tHit;
         }
+        if (hitSomething) break;
 
         // Advance to next voxel
 

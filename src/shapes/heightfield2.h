@@ -59,18 +59,18 @@ private:
     float *z;
     int nx, ny;
     int nVoxels[2];
-    float width[2], invWidth[2];
+    float width[2];
     vector<Reference<Shape> > triangle; // Triangles are in World Space
     BBox objectBounds;
 
     int posToVoxel(const Point &P, int axis) const {
-        int v = Float2Int(P[axis] * invWidth[axis]);
+        int v = Float2Int(P[axis] * nVoxels[axis]);
         return Clamp(v, 0, nVoxels[axis] - 1);
     }
     float voxelToPos(int p, int axis) const {
         return p * width[axis];
     }
-    int offset(int x, int y) const { return x + y * invWidth[0];}
+    int offset(int x, int y) const { return x + y * nVoxels[0];}
 };
 
 
