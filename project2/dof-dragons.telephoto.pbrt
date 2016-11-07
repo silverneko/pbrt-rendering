@@ -1,0 +1,98 @@
+Film "image"  "integer xresolution" [300] "integer yresolution" [300] "string filename" ["dof-dragons.telephoto.exr" ] 
+
+
+# For high quality images, use 128 or 512 samples
+Sampler "lowdiscrepancy" "integer pixelsamples" [32] # for final: [512] 
+
+#LookAt 2.3 .1 -.7    .4 0 -.9  0 1 0
+Scale 5000 5000 5000
+Rotate -3 1 0 0
+Rotate 52 0 1 0
+Translate -2.3 -.05 .5
+
+
+# Your implementation of a realistic lens system
+#
+Camera "realistic" 
+	"string specfile" "telephoto.250mm.dat" 
+	"float filmdistance" 123.74390
+	"float aperture_diameter" 40.5
+	"float filmdiag" 70 
+	"float hither" [0.001 ] 
+	"float yon" [1e+30 ] 
+	"float shutteropen" [0 ] 
+	"float shutterclose" [0 ]
+
+
+WorldBegin
+
+AttributeBegin
+AreaLightSource "area" "color L" [320 320 320] "integer nsamples" [4] # 4 for 128 pixel samples
+Translate 0 10 0
+Rotate 90 1 0 0
+Shape "disk" "float radius" [8]
+AttributeEnd
+
+Texture "grid" "color" "imagemap" "string filename" ["textures/lines.exr"]
+Texture "sgrid" "color" "scale" "texture tex1" "grid" "color tex2" [ .5 .5 .5 ]
+Material "matte" "texture Kd" "sgrid"
+Shape "trianglemesh" "point P" [ -4 0 -4 4 0 -4 4 0 4 -4 0 4 ]
+      "float uv" [ 0 0 5 0 5 5 0 5 ]
+	"integer indices" [ 0 1 2 2 3 0]
+
+ObjectBegin "dragon-b"
+# Material "bluepaint"
+Material "matte" "color Kd" [ .2 .2 .5 ]
+Translate -.01 0 0
+Rotate -10 0 1 0
+Translate .01 0 0
+#Include "geometry/dragon.pbrt"
+Rotate -90 1 0 0 
+Shape "cone" "float height" 0.15 "float radius" 0.05 "float phimax" 360
+ObjectEnd
+
+ObjectBegin "dragon-a"
+# Material "clay"
+Material "matte" "color Kd" [ .8 .2 .2 ]
+Translate -.01 0 0
+Rotate -17 0 1 0
+Translate .01 0 0
+#Include "geometry/dragon.pbrt"
+Rotate -90 1 0 0
+Shape "cone" "float height" 0.15 "float radius" 0.05 "float phimax" 360
+ObjectEnd
+
+Translate -.6 0 0 
+ObjectInstance "dragon-b"
+
+Translate .26 0 0 
+ObjectInstance "dragon-a"
+
+Translate .26 0 0 
+ObjectInstance "dragon-b"
+
+Translate .26 0 0 
+ObjectInstance "dragon-a"
+
+Translate .26 0 0 
+ObjectInstance "dragon-b"
+
+Translate .26 0 0 
+ObjectInstance "dragon-a"
+
+Translate .26 0 0 
+ObjectInstance "dragon-b"
+
+Translate .26 0 0 
+ObjectInstance "dragon-a"
+
+Translate .26 0 0 
+ObjectInstance "dragon-b"
+
+Translate .26 0 0 
+ObjectInstance "dragon-a"
+
+Translate .26 0 0 
+ObjectInstance "dragon-b"
+
+WorldEnd
