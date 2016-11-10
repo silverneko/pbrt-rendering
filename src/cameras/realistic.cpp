@@ -110,8 +110,10 @@ RealisticCamera::RealisticCamera(const AnimatedTransform &cam2world,
   // YOUR CODE HERE -- build and store datastructures representing the given lens
   // and film placement.
   parseLensSpec(specfile, filmdistance, Lenses);
-  exitPupilR = sqrt(Lenses[0].aperture);
-  exitPupilZ = Lenses[0].posZ;
+  // exitPupilR = sqrt(Lenses[0].aperture);
+  // exitPupilZ = Lenses[0].posZ;
+  exitPupilR = aperture_diameter / 2;
+  exitPupilZ = filmdistance;
 
   float aspectRatio = (float)film->yResolution / film->xResolution;
   float x = sqrt(filmdiag * filmdiag / (1 + aspectRatio * aspectRatio));
