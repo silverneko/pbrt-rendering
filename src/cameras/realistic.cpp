@@ -8,7 +8,7 @@
 
 using namespace std;
 
-bool Lens::getRefractedRay(const Ray &r, float n0, Ray *refracted) const {
+bool Lens::getRefractedRay(const Ray &r, float eta, Ray *refracted) const {
     if (radius == 0) {
       float t0;
       t0 = (posZ - r.o.z) / r.d.z;
@@ -58,7 +58,6 @@ bool Lens::getRefractedRay(const Ray &r, float n0, Ray *refracted) const {
     if (N.z > 0) N *= -1;
     float c1 = Dot(N, -I);
     assert(c1 > 0);
-    float eta = n0 / nd;
     float t = 1 - eta * eta * (1 - c1 * c1);
     if (t < 0) {
       return false;
@@ -94,6 +93,9 @@ void parseLensSpec(const string &specfile, float zpos, vector<Lens> &Lenses) {
     if (lens.radius < 0) {
       lens.radius *= -1;
     }
+    if (i+1 < Lenses.size()) {
+      lens.nd /= Lenses[i+1].nd;
+    }
   }
   fclose(Specfile);
 }
@@ -108,14 +110,16 @@ RealisticCamera::RealisticCamera(const AnimatedTransform &cam2world,
   // YOUR CODE HERE -- build and store datastructures representing the given lens
   // and film placement.
   parseLensSpec(specfile, filmdistance, Lenses);
-  exitPupilR = aperture_diameter / 2;
-  exitPupilZ = filmdistance;
+  exitPupilR = sqrt(Lenses[0].aperture);
+  exitPupilZ = Lenses[0].posZ;
 
-  float aspectRatio = film->yResolution / film->xResolution;
+  float aspectRatio = (float)film->yResolution / film->xResolution;
   float x = sqrt(filmdiag * filmdiag / (1 + aspectRatio * aspectRatio));
   float y = x * aspectRatio;
   RasterToCamera = Scale(x / film->xResolution,
-                         y / film->yResolution, 1);
+                         y / film->yResolution, 1) *
+    Scale(-1, 1, 1) *
+    Translate(Vector(-film->xResolution, 0, 0));
   CameraToLens = Translate(Vector(x * -0.5, y * -0.5, 0));
   LensToCamera = Inverse(CameraToLens);
 }
@@ -133,19 +137,18 @@ float RealisticCamera::GenerateRay(const CameraSample &sample,
   Point lensSample(r * cos(theta), r * sin(theta), exitPupilZ);
   Vector rd(Normalize(lensSample - ro));
   Ray ray(ro, rd, 0, INFINITY);
-  float Weight = 1; //rd.z * rd.z * rd.z * rd.z / exitPupilZ / exitPupilZ;
   float n0 = 1;
   for (int i = 0; i < Lenses.size(); ++i) {
     const Lens &lens = Lenses[i];
-    if (lens.getRefractedRay(ray, n0, &ray) == false) {
-      Weight = 0;
-      break;
+    if (lens.getRefractedRay(ray, lens.nd, &ray) == false) {
+      return 0;
     }
     n0 = lens.nd;
   }
   ray = LensToCamera(ray);
   // ray.o.z = 0;
   CameraToWorld(ray, generated_ray);
+  float Weight = rd.z * rd.z * rd.z * rd.z / exitPupilZ / exitPupilZ * M_PI * exitPupilR * exitPupilR;
   return Weight;
 }
 
