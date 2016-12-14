@@ -73,6 +73,7 @@
 #include "lights/distant.h"
 #include "lights/goniometric.h"
 #include "lights/infinite.h"
+#include "lights/medianCutEnvironmentLight.h"
 #include "lights/point.h"
 #include "lights/projection.h"
 #include "lights/spot.h"
@@ -499,6 +500,8 @@ Light *MakeLight(const string &name,
         light = CreateDistantLight(light2world, paramSet);
     else if (name == "infinite" || name == "exinfinite")
         light = CreateInfiniteLight(light2world, paramSet);
+    else if (name == "medianCutEnvironmentLight")
+        light = CreateMedianCutEnvironmentLight(light2world, paramSet);
     else
         Warning("Light \"%s\" unknown.", name.c_str());
     paramSet.ReportUnused();
