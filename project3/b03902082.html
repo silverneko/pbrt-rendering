@@ -19,10 +19,10 @@
   </p>
   <p>
     接著我按照論文的方法，一開始 WorkList 中的 region 是整塊 light probe。
-    之後每個 iteration 我都把 worklist 中的每個 region 拿出來，從長邊把它切成兩個
+    之後每個 iteration 我都把 worklist 中的一個 region 拿出來，從長邊把它切成兩個
     region，下刀位置是使用 binary search 找出能盡量平分 region 能量的位置。然後把
-    切好的兩個新 region 加回 worklist 裡面。如此 iterate 6 次，則就會大約有 64 個
-    能量大致相等的區域。這邊要小心的是有時候 worklist 裡面的 region 已經小到沒辦法
+    切好的兩個新 region 加回 worklist 裡面。如此重複執行直到我切成夠多個 region 了
+    。這邊要小心的是有時候 worklist 裡面的 region 已經小到沒辦法
     再切了，這時候就要跳過不要切它，否則就有可能切出面積為零的 region 。
   </p>
   <p>
@@ -95,19 +95,14 @@
   </p>
 
   <p>
-    當 sample 數目是 16, 64 的時候，default method 的結果圖看起來有較多的雜訊，
-    不過這應該是正常現象，因為 my method 用到的 sample point 最多只有 64 個，而
+    當 sample 數目是 4, 16, 64 的時候，default method 的結果圖看起來有較多的雜訊，
+    不過這應該是正常現象，因為 my method 可能被 sample 到的光源數目比較少，而
     default method 有可能被用到的 sample point 則有無數個；因此在 sample point 
-    較少的時候 my method 取出來的 sample 的 variance 會比較小。
+    較少的時候 my method 會產生 variance 比較小的圖片。
   </p>
   <p>
-    在看起來比較暗的那個 scene，my method 的結果圖在車子前端，尤其是引擎蓋的部份
-    看起來比 default method 還要亮，應該是因為 my method 是使用 median cut 後的
-    region 重心當作點光源，因此跟 default method 有差異。
-  </p>
-  <p>
-    在比較亮的那個 scene (New)，my method 的車子尾部的影子非常散亂，這應該是因為
-    高能量的區域被切成很多塊後，形成了很多個相鄰的光源，因此車尾才會形成很多個
+    在比較亮的那個 scene (New)，my method 的車子影子非常散亂，這應該是因為
+    高能量的區域被切成很多塊後，形成了很多個相鄰的光源，因此才會形成很多個
     彼此重疊的影子，並且影子跟影子都是形狀類似但是位置有一點點差距的樣子。
   </p>
 
@@ -125,7 +120,7 @@
       <td><img src="med_input/envlight-4-my.png"></td>
     </tr>
     <tr>
-      <td>4</td>
+      <td>4 New</td>
       <td><img src="env_input/envlight-new-4.png"></td>
       <td><img src="med_input/envlight-new-4-my.png"></td>
     </tr>
@@ -135,7 +130,7 @@
       <td><img src="med_input/envlight-16-my.png"></td>
     </tr>
     <tr>
-      <td>16</td>
+      <td>16 New</td>
       <td><img src="env_input/envlight-new-16.png"></td>
       <td><img src="med_input/envlight-new-16-my.png"></td>
     </tr>
@@ -145,7 +140,7 @@
       <td><img src="med_input/envlight-64-my.png"></td>
     </tr>
     <tr>
-      <td>64</td>
+      <td>64 New</td>
       <td><img src="env_input/envlight-new-64.png"></td>
       <td><img src="med_input/envlight-new-64-my.png"></td>
     </tr>
@@ -155,7 +150,7 @@
       <td><img src="med_input/envlight-256-my.png"></td>
     </tr>
     <tr>
-      <td>256</td>
+      <td>256 New</td>
       <td><img src="env_input/envlight-new-256.png"></td>
       <td><img src="med_input/envlight-new-256-my.png"></td>
     </tr>

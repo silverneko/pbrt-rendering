@@ -85,7 +85,7 @@ MedianCutEnvironmentLight::~MedianCutEnvironmentLight() {
 
 MedianCutEnvironmentLight::MedianCutEnvironmentLight(const Transform &light2world,
         const Spectrum &L, int ns, const string &texmap)
-    : Light(light2world, ns) {
+    : Light(light2world, ns), nLightSources(ns) {
     int width = 0, height = 0;
     RGBSpectrum *texels = NULL;
     // Read texel data from _texmap_ into _texels_
@@ -123,45 +123,41 @@ MedianCutEnvironmentLight::MedianCutEnvironmentLight(const Transform &light2worl
         (Sum(_x2-1, _y2-1) - Sum(_x1-1, _y2-1) - Sum(_x2-1, _y1-1) + Sum(_x1-1, _y1-1))
     queue<P4> WorkList;
     WorkList.push(P4(0, 0, width, height));
-    for (int k = 0; k < 6; ++k) {
-      int N = WorkList.size();
-      while (N--) {
-        int x1, y1, x2, y2;
-        WorkList.front().get(x1, y1, x2, y2);
-        WorkList.pop();
-        int h, w;
-        h = y2 - y1;
-        w = (x2 - x1) * sinf((float)(y2 + y1) / 2.f / height * M_PI);
-        if (h > w) {
-          int lb = y1, hb = y2;
-          while (lb != hb-1) {
-            int mid = (lb + hb) / 2;
-            if (Rec(x1, y1, x2, mid) > Rec(x1, mid, x2, y2)) {
-              hb = mid;
-            } else {
-              lb = mid;
-            }
+    while (WorkList.size() < nLightSources) {
+      int x1, y1, x2, y2;
+      WorkList.front().get(x1, y1, x2, y2);
+      WorkList.pop();
+      int h, w;
+      h = y2 - y1;
+      w = (x2 - x1) * sinf((float)(y2 + y1) / 2.f / height * M_PI);
+      if (h > w) {
+        int lb = y1, hb = y2;
+        while (lb != hb-1) {
+          int mid = (lb + hb) / 2;
+          if (Rec(x1, y1, x2, mid) > Rec(x1, mid, x2, y2)) {
+            hb = mid;
+          } else {
+            lb = mid;
           }
-          if (y1 != lb) WorkList.push(P4(x1, y1, x2, lb));
-          if (lb != y2) WorkList.push(P4(x1, lb, x2, y2));
-        } else {
-          int lb = x1, hb = x2;
-          while (lb != hb-1) {
-            int mid = (lb + hb) / 2;
-            if (Rec(x1, y1, mid, y2) > Rec(mid, y1, x2, y2)) {
-              hb = mid;
-            } else {
-              lb = mid;
-            }
-          }
-          if (x1 != lb) WorkList.push(P4(x1, y1, lb, y2));
-          if (lb != x2) WorkList.push(P4(lb, y1, x2, y2));
         }
+        if (y1 != lb) WorkList.push(P4(x1, y1, x2, lb));
+        if (lb != y2) WorkList.push(P4(x1, lb, x2, y2));
+      } else {
+        int lb = x1, hb = x2;
+        while (lb != hb-1) {
+          int mid = (lb + hb) / 2;
+          if (Rec(x1, y1, mid, y2) > Rec(mid, y1, x2, y2)) {
+            hb = mid;
+          } else {
+            lb = mid;
+          }
+        }
+        if (x1 != lb) WorkList.push(P4(x1, y1, lb, y2));
+        if (lb != x2) WorkList.push(P4(lb, y1, x2, y2));
       }
     }
 
     // Compute centroid and place light source at each centroid
-    nLightSources = WorkList.size();
     invnLightSources = 1.f / nLightSources;
     Intensity = new RGBSpectrum[nLightSources];
     LightSourceU = new float[nLightSources];
@@ -312,7 +308,6 @@ float MedianCutEnvironmentLight::Pdf(const Point &, const Vector &w) const {
 Spectrum MedianCutEnvironmentLight::Sample_L(const Scene *scene,
         const LightSample &ls, float u1, float u2, float time,
         Ray *ray, Normal *Ns, float *pdf) const {
-    /* TODO */
     int li = Float2Int(ls.uPos[0] * nLightSources);
     float phi = LightSourceU[li];
     float theta = LightSourceV[li];
