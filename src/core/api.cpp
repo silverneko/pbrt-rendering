@@ -91,6 +91,7 @@
 #include "renderers/aggregatetest.h"
 #include "renderers/createprobes.h"
 #include "renderers/metropolis.h"
+#include "renderers/progressivePhotonMapping.h"
 #include "renderers/samplerrenderer.h"
 #include "renderers/surfacepoints.h"
 #include "samplers/adaptive.h"
@@ -1242,6 +1243,25 @@ Renderer *RenderOptions::MakeRenderer() const {
         Point pCamera = camera->CameraToWorld(camera->shutterOpen, Point(0, 0, 0));
         renderer = CreateSurfacePointsRenderer(RendererParams, pCamera, camera->shutterOpen);
         RendererParams.ReportUnused();
+    }
+    else if (RendererName == "progressivePhotonMapping") {
+        bool visIds = RendererParams.FindOneBool("visualizeobjectids", false);
+        RendererParams.ReportUnused();
+        Sampler *sampler = MakeSampler(SamplerName, SamplerParams, camera->film, camera);
+        if (!sampler) Severe("Unable to create sampler.");
+        // Create surface and volume integrators
+        SurfaceIntegrator *surfaceIntegrator = MakeSurfaceIntegrator(SurfIntegratorName,
+            SurfIntegratorParams);
+        if (!surfaceIntegrator) Severe("Unable to create surface integrator.");
+        VolumeIntegrator *volumeIntegrator = MakeVolumeIntegrator(VolIntegratorName,
+            VolIntegratorParams);
+        if (!volumeIntegrator) Severe("Unable to create volume integrator.");
+        renderer = new SamplerRenderer(sampler, camera, surfaceIntegrator,
+                                       volumeIntegrator, visIds);
+        // Warn if no light sources are defined
+        if (lights.size() == 0)
+            Warning("No light sources defined in scene; "
+                "possibly rendering a black image.");
     }
     else {
         if (RendererName != "sampler")
