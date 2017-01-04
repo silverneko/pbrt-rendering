@@ -59,6 +59,7 @@ public:
     void GetSampleExtent(int *xstart, int *xend, int *ystart, int *yend) const;
     void GetPixelExtent(int *xstart, int *xend, int *ystart, int *yend) const;
     void WriteImage(float splatScale);
+    void WriteImage(const string &pathname, float splatScale);
     void UpdateDisplay(int x0, int y0, int x1, int y1, float splatScale);
 private:
     // ImageFilm Private Data

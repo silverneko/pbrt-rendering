@@ -45,8 +45,8 @@
 class ProgressivePhotonMapping : public Renderer {
 public:
     // ProgressivePhotonMapping Public Methods
-    ProgressivePhotonMapping(Sampler *s, Camera *c, SurfaceIntegrator *si,
-                    VolumeIntegrator *vi, bool visIds);
+    ProgressivePhotonMapping(Camera *c, int perPixelSamples, int maxDepth,
+                             int nIterations, int nPhotonsPerIter);
     ~ProgressivePhotonMapping();
     void Render(const Scene *scene);
     Spectrum Li(const Scene *scene, const RayDifferential &ray,
@@ -56,40 +56,16 @@ public:
         const Sample *sample, RNG &rng, MemoryArena &arena) const;
 private:
     // ProgressivePhotonMapping Private Data
-    bool visualizeObjectIds;
-    Sampler *sampler;
     Camera *camera;
-    SurfaceIntegrator *surfaceIntegrator;
-    VolumeIntegrator *volumeIntegrator;
+    int nPixelSamples;
+    int maxDepth;
+    int nIterations;
+    int nPhotonsPerIter;
 };
 
-
-
-// ProgressivePhotonMappingTask Declarations
-class ProgressivePhotonMappingTask : public Task {
-public:
-    // ProgressivePhotonMappingTask Public Methods
-    ProgressivePhotonMappingTask(const Scene *sc, Renderer *ren, Camera *c,
-                        ProgressReporter &pr, Sampler *ms, Sample *sam, 
-                        bool visIds, int tn, int tc)
-      : reporter(pr)
-    {
-        scene = sc; renderer = ren; camera = c; mainSampler = ms;
-        origSample = sam; visualizeObjectIds = visIds; taskNum = tn; taskCount = tc;
-    }
-    void Run();
-private:
-    // ProgressivePhotonMappingTask Private Data
-    const Scene *scene;
-    const Renderer *renderer;
-    Camera *camera;
-    Sampler *mainSampler;
-    ProgressReporter &reporter;
-    Sample *origSample;
-    bool visualizeObjectIds;
-    int taskNum, taskCount;
-};
-
+ProgressivePhotonMapping *
+CreateProgressivePhotonMappingRenderer(Camera *camera,
+                                       const ParamSet &params);
 
 
 #endif // PBRT_RENDERERS_PROGRESSIVEPHOTONMAPPING_H

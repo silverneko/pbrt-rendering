@@ -213,6 +213,44 @@ void ImageFilm::WriteImage(float splatScale) {
 }
 
 
+void ImageFilm::WriteImage(const string &pathname, float splatScale) {
+    // Convert image to RGB and compute final pixel values
+    int nPix = xPixelCount * yPixelCount;
+    float *rgb = new float[3*nPix];
+    int offset = 0;
+    for (int y = 0; y < yPixelCount; ++y) {
+        for (int x = 0; x < xPixelCount; ++x) {
+            // Convert pixel XYZ color to RGB
+            XYZToRGB((*pixels)(x, y).Lxyz, &rgb[3*offset]);
+
+            // Normalize pixel with weight sum
+            float weightSum = (*pixels)(x, y).weightSum;
+            if (weightSum != 0.f) {
+                float invWt = 1.f / weightSum;
+                rgb[3*offset  ] = max(0.f, rgb[3*offset  ] * invWt);
+                rgb[3*offset+1] = max(0.f, rgb[3*offset+1] * invWt);
+                rgb[3*offset+2] = max(0.f, rgb[3*offset+2] * invWt);
+            }
+
+            // Add splat value at pixel
+            float splatRGB[3];
+            XYZToRGB((*pixels)(x, y).splatXYZ, splatRGB);
+            rgb[3*offset  ] += splatScale * splatRGB[0];
+            rgb[3*offset+1] += splatScale * splatRGB[1];
+            rgb[3*offset+2] += splatScale * splatRGB[2];
+            ++offset;
+        }
+    }
+
+    // Write RGB image
+    ::WriteImage(pathname, rgb, NULL, xPixelCount, yPixelCount,
+                 xResolution, yResolution, xPixelStart, yPixelStart);
+
+    // Release temporary image memory
+    delete[] rgb;
+}
+
+
 void ImageFilm::UpdateDisplay(int x0, int y0, int x1, int y1,
     float splatScale) {
 }

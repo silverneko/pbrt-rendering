@@ -1245,19 +1245,8 @@ Renderer *RenderOptions::MakeRenderer() const {
         RendererParams.ReportUnused();
     }
     else if (RendererName == "progressivePhotonMapping") {
-        bool visIds = RendererParams.FindOneBool("visualizeobjectids", false);
+        renderer = CreateProgressivePhotonMappingRenderer(camera, RendererParams);
         RendererParams.ReportUnused();
-        Sampler *sampler = MakeSampler(SamplerName, SamplerParams, camera->film, camera);
-        if (!sampler) Severe("Unable to create sampler.");
-        // Create surface and volume integrators
-        SurfaceIntegrator *surfaceIntegrator = MakeSurfaceIntegrator(SurfIntegratorName,
-            SurfIntegratorParams);
-        if (!surfaceIntegrator) Severe("Unable to create surface integrator.");
-        VolumeIntegrator *volumeIntegrator = MakeVolumeIntegrator(VolIntegratorName,
-            VolIntegratorParams);
-        if (!volumeIntegrator) Severe("Unable to create volume integrator.");
-        renderer = new SamplerRenderer(sampler, camera, surfaceIntegrator,
-                                       volumeIntegrator, visIds);
         // Warn if no light sources are defined
         if (lights.size() == 0)
             Warning("No light sources defined in scene; "
