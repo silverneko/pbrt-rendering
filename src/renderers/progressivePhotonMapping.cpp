@@ -44,24 +44,9 @@
 #include "camera.h"
 #include "intersection.h"
 
-class HitPointUpdateTask : public Task {
-public:
-    HitPointUpdateTask(Camera *camera, vector<HitPoint> &hitPoints,
-                       const KdTree<Photon> *photonMap,
-                       ProgressReporter &prog)
-      : camera(camera), hitPoints(hitPoints), photonMap(photonMap),
-      progress(prog) {}
-    void Run();
-private:
-    Camera &camera;
-    vector<HitPoint> &hitPoints;
-    const KdTree<Photon> *photonMap;
-    ProgressReporter &progress;
-};
+#include <cstdio>
 
-void HitPointUpdateTask::Run() {
-  
-}
+namespace {
 
 struct Photon {
     Photon(const Point &pp, const Spectrum &wt, const Vector &w)
@@ -71,6 +56,136 @@ struct Photon {
     Spectrum alpha;
     Vector wi;
 };
+
+
+struct ClosePhoton {
+    // ClosePhoton Public Methods
+    ClosePhoton(const Photon *p = NULL, float md2 = INFINITY)
+        : photon(p), distanceSquared(md2) { }
+    bool operator<(const ClosePhoton &p2) const {
+        return distanceSquared == p2.distanceSquared ?
+            (photon < p2.photon) : (distanceSquared < p2.distanceSquared);
+    }
+    const Photon *photon;
+    float distanceSquared;
+};
+
+
+struct PhotonProcess {
+    // PhotonProcess Public Methods
+    PhotonProcess(uint32_t mp, ClosePhoton *buf);
+    void operator()(const Point &p, const Photon &photon, float dist2,
+                    float &maxDistSquared);
+    ClosePhoton *photons;
+    uint32_t nLookup, nFound;
+};
+
+
+struct HitPoint {
+    Point p;
+    Normal n;
+    Vector wo;
+    BSDF *bsdf;
+    float x, y;
+    Spectrum beta;
+    Spectrum L;
+    float r2;
+    float N;
+    Spectrum tau;
+};
+} // end of anonymous namespace
+
+PhotonProcess::PhotonProcess(uint32_t mp, ClosePhoton *buf) {
+    photons = buf;
+    nLookup = mp;
+    nFound = 0;
+}
+
+
+inline void PhotonProcess::operator()(const Point &p,
+        const Photon &photon, float distSquared, float &maxDistSquared) {
+    if (nFound < nLookup) {
+        // Add photon to unordered array of photons
+        photons[nFound++] = ClosePhoton(&photon, distSquared);
+        if (nFound == nLookup) {
+            std::make_heap(&photons[0], &photons[nLookup]);
+            maxDistSquared = photons[0].distanceSquared;
+        }
+    }
+    else {
+        // Remove most distant photon from heap and add new photon
+        std::pop_heap(&photons[0], &photons[nLookup]);
+        photons[nLookup-1] = ClosePhoton(&photon, distSquared);
+        std::push_heap(&photons[0], &photons[nLookup]);
+        maxDistSquared = photons[0].distanceSquared;
+    }
+}
+
+
+class PixelUpdateTask : public Task {
+public:
+    PixelUpdateTask(Film *film, vector<HitPoint> &hitPoints,
+                    ProgressReporter &prog)
+      : film(film), hitPoints(hitPoints), progress(prog) {}
+    void Run();
+private:
+    Film *film;
+    vector<HitPoint> &hitPoints;
+    ProgressReporter &progress;
+};
+
+void PixelUpdateTask::Run() {
+  for (int i = 0; i < hitPoints.size(); ++i) {
+    // Update pixel value
+    HitPoint &HP = hitPoints[i];
+    Spectrum Li = HP.L;
+    if (HP.N > 0)
+      Li += HP.beta * HP.tau / (M_PI * HP.r2 * HP.N);
+    film->AddSample((CameraSample){.imageX = HP.x, .imageY = HP.y}, Li);
+  }
+  progress.Update();
+}
+
+class HitPointUpdateTask : public Task {
+public:
+    HitPointUpdateTask(vector<HitPoint> &hitPoints,
+                       const KdTree<Photon> *photonMap,
+                       ProgressReporter &prog)
+      : hitPoints(hitPoints), photonMap(photonMap), progress(prog) {}
+    void Run();
+private:
+    vector<HitPoint> &hitPoints;
+    const KdTree<Photon> *photonMap;
+    ProgressReporter &progress;
+};
+
+void HitPointUpdateTask::Run() {
+  static const int nPhotonsDesired = 50;
+  ClosePhoton buf[nPhotonsDesired];
+  for (int i = 0; i < hitPoints.size(); ++i) {
+    HitPoint &HP = hitPoints[i];
+    PhotonProcess proc(nPhotonsDesired, buf);
+    float searchRadius2 = HP.r2;
+    photonMap->Lookup(HP.p, proc, searchRadius2);
+    if (proc.nFound > 0) {
+      // Update and adjust
+      int M = proc.nFound;
+      Spectrum L(0.0);
+      for (int j = 0; j < M; ++j) {
+        Spectrum Li = proc.photons[j].photon->alpha;
+        Vector wi = proc.photons[j].photon->wi;
+        // if (Dot(wi, HP.n) > 0) continue;
+        L += Li * HP.bsdf->f(HP.wo, wi);
+      }
+      const float alpha = 0.7;
+      float adjustRatio = (HP.N + alpha * M) / (HP.N + M);
+      HP.N = HP.N + alpha * M;
+      HP.r2 = HP.r2 * adjustRatio;
+      HP.tau = (HP.tau + L) * adjustRatio;
+    }
+  }
+  progress.Update();
+}
 
 class PhotonTracingTask : public Task {
 public:
@@ -154,7 +269,7 @@ void PhotonTracingTask::Run() {
           alpha = anew / continueProb;
           specularPath &= ((flags & BSDF_SPECULAR) != 0);
 
-          if (!specularPath) break;
+          // if (!specularPath) break;
           photonRay = RayDifferential(photonIsect.dg.p, wi, photonRay,
                                       photonIsect.rayEpsilon);
         }
@@ -171,18 +286,6 @@ void PhotonTracingTask::Run() {
       }
     }
 }
-
-struct HitPoint {
-    Point p;
-    Normal n;
-    Vector wo;
-    BSDF *bsdf;
-    float x, y;
-    Spectrum L;
-    float r;
-    int N;
-    Spectrum tau;
-};
 
 class RayTracingTask : public Task {
 public:
@@ -276,10 +379,11 @@ void RayTracingTask::Run() {
                                       .bsdf = bsdf,
                                       .x = sample.imageX,
                                       .y = sample.imageY,
+                                      .beta = pathThroughput,
                                       .L = L,
-                                      .r = 0,
-                                      .N = 0,
-                                      .tau = 0});
+                                      .r2 = 1.,
+                                      .N = 0.,
+                                      .tau = 0.});
                   newHitPoint = true;
                   break;
                 }
@@ -369,8 +473,8 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
 
     // Compute number of _ProgressivePhotonMappingTask_s to create for rendering
     int nPixels = camera->film->xResolution * camera->film->yResolution;
-    int nTasks = max(32 * NumSystemCores(), nPixels / (16*16));
-    nTasks = RoundUpPow2(nTasks);
+    int _nTasks = max(32 * NumSystemCores(), nPixels / (16*16));
+    const int nTasks = RoundUpPow2(_nTasks);
     ProgressReporter reporter(nTasks, "Ray Tracing Pass");
     vector<Task *> rayTracingTasks;
     vector<vector<HitPoint> > hitPoints(nTasks);
@@ -411,14 +515,48 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
       WaitForAllTasks();
       for (uint32_t i = 0; i < photonTracingTasks.size(); ++i)
         delete photonTracingTasks[i];
-      progress.Update();
+      progress.Done();
       Mutex::Destroy(mutex);
 
       KdTree<Photon> *photonMap = NULL;
       if (photons.size() > 0)
         photonMap = new KdTree<Photon>(photons);
+      else
+        continue;
+
+      ProgressReporter progress2(nTasks, "Hitpoint Update Pass");
+      vector<Task *> hitPointUpdateTasks;
+      for (uint32_t i = 0; i < nTasks; ++i) {
+        hitPointUpdateTasks.push_back(new HitPointUpdateTask(
+            hitPoints[i], photonMap, progress2));
+      }
+      EnqueueTasks(hitPointUpdateTasks);
+      WaitForAllTasks();
+      for (uint32_t i = 0; i < nTasks; ++i)
+        delete hitPointUpdateTasks[i];
+      progress2.Done();
+      delete photonMap;
+
+      /*
+      if ((iter + 1) % 1 == 0) {
+        char pathname[256];
+        snprintf(pathname, 256, "%d-iter.exr", iter);
+        camera->film->WriteImage(pathname);
+      }
+      */
     }
 
+    ProgressReporter updateProgress(nTasks, "Pixel Update Pass");
+    vector<Task *> pixelUpdateTasks;
+    for (uint32_t i = 0; i < nTasks; ++i) {
+      pixelUpdateTasks.push_back(new PixelUpdateTask(
+          camera->film, hitPoints[i], updateProgress));
+    }
+    EnqueueTasks(pixelUpdateTasks);
+    WaitForAllTasks();
+    for (uint32_t i = 0; i < nTasks; ++i)
+      delete pixelUpdateTasks[i];
+    updateProgress.Done();
 
     PBRT_FINISHED_RENDERING();
     // Clean up after rendering and store final image
