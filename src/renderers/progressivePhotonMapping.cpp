@@ -83,7 +83,6 @@ struct PhotonProcess {
 
 struct HitPoint {
     Point p;
-    Normal n;
     Vector wo;
     BSDF *bsdf;
     float x, y;
@@ -124,13 +123,14 @@ inline void PhotonProcess::operator()(const Point &p,
 
 class PixelUpdateTask : public Task {
 public:
-    PixelUpdateTask(Film *film, vector<HitPoint> &hitPoints,
+    PixelUpdateTask(Film *film, vector<HitPoint> &hitPoints, int Nemitted,
                     ProgressReporter &prog)
-      : film(film), hitPoints(hitPoints), progress(prog) {}
+      : film(film), hitPoints(hitPoints), Nemitted(Nemitted), progress(prog) {}
     void Run();
 private:
     Film *film;
     vector<HitPoint> &hitPoints;
+    int Nemitted;
     ProgressReporter &progress;
 };
 
@@ -139,8 +139,7 @@ void PixelUpdateTask::Run() {
     // Update pixel value
     HitPoint &HP = hitPoints[i];
     Spectrum Li = HP.L;
-    if (HP.N > 0)
-      Li += HP.beta * HP.tau / (M_PI * HP.r2 * HP.N);
+    Li += HP.beta * HP.tau / (M_PI * HP.r2 * Nemitted);
     film->AddSample((CameraSample){.imageX = HP.x, .imageY = HP.y}, Li);
   }
   progress.Update();
@@ -174,7 +173,6 @@ void HitPointUpdateTask::Run() {
       for (int j = 0; j < M; ++j) {
         Spectrum Li = proc.photons[j].photon->alpha;
         Vector wi = proc.photons[j].photon->wi;
-        // if (Dot(wi, HP.n) > 0) continue;
         L += Li * HP.bsdf->f(HP.wo, wi);
       }
       const float alpha = 0.7;
@@ -209,14 +207,19 @@ private:
 
 void PhotonTracingTask::Run() {
     MemoryArena arena;
-    RNG rng(31 * taskNum);
+    RNG rng(taskNum);
     vector<Photon> localPhotons;
+    localPhotons.reserve(want);
     uint32_t totalPaths = 0;
     PermutedHalton halton(6, rng);
 
     for (uint32_t i = 0; i < want; ++i, progress.Update()) {
       float u[6];
       halton.Sample(++totalPaths, u);
+
+for (int i = 0; i < 6; ++i)
+  u[i] = rng.RandomFloat();
+
       // Choose light to shoot photon from
       float lightPdf;
       int lightNum = lightDistribution->SampleDiscrete(u[0], &lightPdf);
@@ -236,6 +239,7 @@ void PhotonTracingTask::Run() {
         bool specularPath = true;
         Intersection photonIsect;
         int nIntersections = 0;
+        bool directHit = true;
         while (scene->Intersect(photonRay, &photonIsect)) {
           ++nIntersections;
           // Handle photon/surface intersection
@@ -246,7 +250,7 @@ void PhotonTracingTask::Run() {
           bool hasNonSpecular = (photonBSDF->NumComponents() >
                                  photonBSDF->NumComponents(specularType));
           Vector wo = -photonRay.d;
-          if (hasNonSpecular) {
+          if (hasNonSpecular && !directHit) {
             // Deposit photon at surface
             Photon photon(photonIsect.dg.p, alpha, wo);
             localPhotons.push_back(photon);
@@ -262,14 +266,18 @@ void PhotonTracingTask::Run() {
           Spectrum anew = alpha * fr *
             AbsDot(wi, photonBSDF->dgShading.nn) / pdf;
 
-          // Possibly terminate photon path with Russian roulette
-          float continueProb = min(1.f, anew.y() / alpha.y());
-          if (rng.RandomFloat() > continueProb)
-            break;
-          alpha = anew / continueProb;
+          if (nIntersections > 3) {
+            // Possibly terminate photon path with Russian roulette
+            float continueProb = min(1.f, anew.y() / alpha.y());
+            if (rng.RandomFloat() > continueProb)
+              break;
+            alpha = anew / continueProb;
+          } else {
+            alpha = anew;
+          }
+          directHit = false;
           specularPath &= ((flags & BSDF_SPECULAR) != 0);
 
-          // if (!specularPath) break;
           photonRay = RayDifferential(photonIsect.dg.p, wi, photonRay,
                                       photonIsect.rayEpsilon);
         }
@@ -291,6 +299,8 @@ class RayTracingTask : public Task {
 public:
     RayTracingTask(const Scene *sc, Renderer *ren, Camera *c,
                    ProgressReporter &pr, Sampler *ms, Sample *sam,
+                   BSDFSampleOffsets *bsdfSam, LightSampleOffsets *lightSam,
+                   BSDFSampleOffsets *lightBSDFSam,
                    vector<HitPoint> &hitPoints, MemoryArena &arena,
                    int maxDepth,
                    int tn, int tc)
@@ -298,6 +308,9 @@ public:
     {
         scene = sc; renderer = ren; camera = c; mainSampler = ms;
         origSample = sam; taskNum = tn; taskCount = tc;
+        bsdfSamples = bsdfSam;
+        lightSamples = lightSam;
+        lightBSDFSamples = lightBSDFSam;
     }
     void Run();
 private:
@@ -311,6 +324,9 @@ private:
     vector<HitPoint> &hitPoints;
     MemoryArena &globalArena;
     int maxDepth;
+    const BSDFSampleOffsets *bsdfSamples;
+    const BSDFSampleOffsets *lightBSDFSamples;
+    const LightSampleOffsets *lightSamples;
 };
 
 void RayTracingTask::Run() {
@@ -347,25 +363,29 @@ void RayTracingTask::Run() {
             if (!scene->Intersect(r, isectp)) {
               // Handle ray that doesn't intersect any geometry
               for (uint32_t i = 0; i < scene->lights.size(); ++i)
-                  L += scene->lights[i]->Le(r);
-              L = rayWeight * L;
+                  L += rayWeight * scene->lights[i]->Le(r);
             } else {
               Spectrum pathThroughput(rayWeight);
               RayDifferential ray(r);
-              bool specularBounce = false;
               for (int bounces = 0; ; ++bounces) {
                 // Possibly add emitted light at path vertex
-                if (bounces == 0 || specularBounce)
-                  L += pathThroughput * isectp->Le(-ray.d);
+                L += pathThroughput * isectp->Le(-ray.d);
 
                 // Sample illumination from lights to find path contribution
                 BSDF *bsdf = isectp->GetBSDF(ray, arena);
                 const Point &p = bsdf->dgShading.p;
                 const Normal &n = bsdf->dgShading.nn;
                 Vector wo = -ray.d;
+                if (bounces < 5) {
+                L += pathThroughput *
+                  UniformSampleOneLight(scene, renderer, arena, p, n, wo,
+                                        isectp->rayEpsilon, ray.time, bsdf, &sample, rng,
+                                        -1, &lightSamples[bounces], &lightBSDFSamples[bounces]);
+                } else {
                 L += pathThroughput *
                   UniformSampleOneLight(scene, renderer, arena, p, n, wo,
                                         isectp->rayEpsilon, ray.time, bsdf, &sample, rng);
+                }
                 BxDFType nonSpecular = BxDFType(BSDF_REFLECTION |
                                                 BSDF_TRANSMISSION |
                                                 BSDF_DIFFUSE |
@@ -374,7 +394,6 @@ void RayTracingTask::Run() {
                   bsdf = isectp->GetBSDF(ray, globalArena);
                   hitPoints.push_back((HitPoint){
                                       .p = p,
-                                      .n = n,
                                       .wo = wo,
                                       .bsdf = bsdf,
                                       .x = sample.imageX,
@@ -383,7 +402,7 @@ void RayTracingTask::Run() {
                                       .L = L,
                                       .r2 = 1.,
                                       .N = 0.,
-                                      .tau = 0.});
+                                      .tau = Spectrum(0.)});
                   newHitPoint = true;
                   break;
                 }
@@ -392,18 +411,21 @@ void RayTracingTask::Run() {
                 Vector wi;
                 BxDFType flags;
                 float pdf;
-                BSDFSample outgoingBSDFSample = BSDFSample(rng);
+                BSDFSample outgoingBSDFSample;
+                if (bounces < 5) {
+                  outgoingBSDFSample = BSDFSample(&sample, bsdfSamples[bounces], 0);
+                } else {
+                  outgoingBSDFSample = BSDFSample(rng);
+                }
                 Spectrum f = bsdf->Sample_f(wo, &wi, outgoingBSDFSample, &pdf,
                                             BSDF_ALL, &flags);
-                if (f.IsBlack() || pdf == 0.)
+                if (f.IsBlack() || pdf == 0. || isinf(f.y()))
                   break;
-                specularBounce = (flags & BSDF_SPECULAR) != 0;
-                assert(specularBounce == true);
                 pathThroughput *= f * AbsDot(wi, n) / pdf;
                 ray = RayDifferential(p, wi, ray, isectp->rayEpsilon);
 
                 // Possibly terminate the path
-                if (bounces > 3) {
+                if (bounces >= 5) {
                   float continueProbability = min(.5f, pathThroughput.y());
                   if (rng.RandomFloat() > continueProbability)
                     break;
@@ -412,9 +434,8 @@ void RayTracingTask::Run() {
 
                 // Find next vertex of path
                 if (!scene->Intersect(ray, &localIsect)) {
-                  if (specularBounce)
-                    for (uint32_t i = 0; i < scene->lights.size(); ++i)
-                      L += pathThroughput * scene->lights[i]->Le(ray);
+                  for (uint32_t i = 0; i < scene->lights.size(); ++i)
+                    L += pathThroughput * scene->lights[i]->Le(ray);
                   break;
                 }
                 pathThroughput *= renderer->Transmittance(scene, ray, NULL, rng, arena);
@@ -468,6 +489,16 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
     float t0 = camera->shutterOpen, t1 = camera->shutterClose;
     LDSampler sampler(x0, x1, y0, y1, nPixelSamples, t0, t1);
     Sample *sample = new Sample(&sampler, NULL, NULL, scene);
+    BSDFSampleOffsets bsdfSamples[6];
+    BSDFSampleOffsets lightBSDFSamples[6];
+    LightSampleOffsets lightSamples[6];
+    {
+      for (int i = 0; i < 6; ++i) {
+        bsdfSamples[i] = BSDFSampleOffsets(1, sample);
+        lightBSDFSamples[i] = BSDFSampleOffsets(1, sample);
+        lightSamples[i] = LightSampleOffsets(1, sample);
+      }
+    }
 
     // Create and launch _ProgressivePhotonMappingTask_s for rendering image
 
@@ -480,21 +511,27 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
     vector<vector<HitPoint> > hitPoints(nTasks);
     MemoryArena *memoryArenas = new MemoryArena[nTasks];
     for (int i = 0; i < nTasks; ++i)
-        rayTracingTasks.push_back(new RayTracingTask(scene, this, camera,
-                                                     reporter, &sampler, sample,
-                                                     hitPoints[i], memoryArenas[i],
-                                                     maxDepth,
-                                                     nTasks-1-i, nTasks));
+        rayTracingTasks.push_back(new RayTracingTask(
+            scene, this, camera, reporter, &sampler, sample, bsdfSamples,
+            lightSamples, lightBSDFSamples,
+            hitPoints[i], memoryArenas[i], maxDepth, nTasks-1-i, nTasks));
     EnqueueTasks(rayTracingTasks);
     WaitForAllTasks();
     for (uint32_t i = 0; i < rayTracingTasks.size(); ++i)
         delete rayTracingTasks[i];
     reporter.Done();
 
+    int nHP = 0;
+    for (int i = 0; i < nTasks; ++i)
+      nHP += hitPoints[i].size();
+    printf("%d HitPoints collected.\n", nHP);
+
+    int totalPhoton = 0;
     // Compute light power CDF for photon shooting
     Distribution1D *lightDistribution = ComputeLightSamplingCDF(scene);
     for (int iter = 0; iter < nIterations; ++iter) {
       if (scene->lights.size() == 0) break;
+      printf("Iteration %d\n", iter + 1);
       ProgressReporter progress(nPhotonsPerIter, "Photon Tracing Pass");
       Mutex *mutex = Mutex::Create();
       vector<Photon> photons;
@@ -508,8 +545,8 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
         int want = photonPerCore;
         if (i == nTasksPhoton - 1) want += photonRes;
         photonTracingTasks.push_back(new PhotonTracingTask(
-            i, camera->shutterOpen, *mutex, want, progress,
-            photons, lightDistribution, scene, this));
+            nTasksPhoton * iter + i, camera->shutterOpen, *mutex, want,
+            progress, photons, lightDistribution, scene, this));
       }
       EnqueueTasks(photonTracingTasks);
       WaitForAllTasks();
@@ -518,6 +555,8 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
       progress.Done();
       Mutex::Destroy(mutex);
 
+      totalPhoton += photons.size();
+      printf("%d Photons mapped\n", photons.size());
       KdTree<Photon> *photonMap = NULL;
       if (photons.size() > 0)
         photonMap = new KdTree<Photon>(photons);
@@ -537,20 +576,39 @@ void ProgressivePhotonMapping::Render(const Scene *scene) {
       progress2.Done();
       delete photonMap;
 
-      /*
-      if ((iter + 1) % 1 == 0) {
+#if 0
+      if ((iter + 1) % 4 == 0) {
+        camera->film->Save();
+        ProgressReporter updateProgress(nTasks, "Pixel Update Pass");
+        vector<Task *> pixelUpdateTasks;
+        for (uint32_t i = 0; i < nTasks; ++i) {
+          pixelUpdateTasks.push_back(new PixelUpdateTask(
+              camera->film, hitPoints[i],
+              nPhotonsPerIter * (iter+1) * 3,
+              updateProgress));
+        }
+        EnqueueTasks(pixelUpdateTasks);
+        WaitForAllTasks();
+        for (uint32_t i = 0; i < nTasks; ++i)
+          delete pixelUpdateTasks[i];
+        updateProgress.Done();
         char pathname[256];
-        snprintf(pathname, 256, "%d-iter.exr", iter);
+        snprintf(pathname, 256, "%d-log.exr", iter+1);
         camera->film->WriteImage(pathname);
+        camera->film->Revert();
       }
-      */
+#endif
     }
 
     ProgressReporter updateProgress(nTasks, "Pixel Update Pass");
     vector<Task *> pixelUpdateTasks;
     for (uint32_t i = 0; i < nTasks; ++i) {
       pixelUpdateTasks.push_back(new PixelUpdateTask(
-          camera->film, hitPoints[i], updateProgress));
+          camera->film, hitPoints[i],
+          // nPhotonsPerIter * nIterations,
+          // totalPhoton,
+          nPhotonsPerIter * nIterations * 3,
+          updateProgress));
     }
     EnqueueTasks(pixelUpdateTasks);
     WaitForAllTasks();

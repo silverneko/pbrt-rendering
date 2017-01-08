@@ -51,6 +51,7 @@ public:
               const string &filename, bool openWindow);
     ~ImageFilm() {
         delete pixels;
+        delete saved_pixels;
         delete filter;
         delete[] filterTable;
     }
@@ -60,6 +61,8 @@ public:
     void GetPixelExtent(int *xstart, int *xend, int *ystart, int *yend) const;
     void WriteImage(float splatScale);
     void WriteImage(const string &pathname, float splatScale);
+    void Save();
+    void Revert();
     void UpdateDisplay(int x0, int y0, int x1, int y1, float splatScale);
 private:
     // ImageFilm Private Data
@@ -78,6 +81,7 @@ private:
         float pad;
     };
     BlockedArray<Pixel> *pixels;
+    BlockedArray<Pixel> *saved_pixels;
     float *filterTable;
 };
 

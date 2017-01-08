@@ -52,6 +52,7 @@ ImageFilm::ImageFilm(int xres, int yres, Filter *filt, const float crop[4],
 
     // Allocate film image storage
     pixels = new BlockedArray<Pixel>(xPixelCount, yPixelCount);
+    saved_pixels = new BlockedArray<Pixel>(xPixelCount, yPixelCount);
 
     // Precompute filter weight table
 #define FILTER_TABLE_SIZE 16
@@ -248,6 +249,27 @@ void ImageFilm::WriteImage(const string &pathname, float splatScale) {
 
     // Release temporary image memory
     delete[] rgb;
+}
+
+void ImageFilm::Save() {
+    for (int y = 0; y < yPixelCount; ++y) {
+        for (int x = 0; x < xPixelCount; ++x) {
+            const Pixel &pixel = (*pixels)(x, y);
+            Pixel &savep = (*saved_pixels)(x, y);
+            savep = pixel;
+        }
+    }
+}
+
+
+void ImageFilm::Revert() {
+    for (int y = 0; y < yPixelCount; ++y) {
+        for (int x = 0; x < xPixelCount; ++x) {
+            const Pixel &savep = (*saved_pixels)(x, y);
+            Pixel &pixel = (*pixels)(x, y);
+            pixel = savep;
+        }
+    }
 }
 
 

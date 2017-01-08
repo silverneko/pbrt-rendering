@@ -55,7 +55,15 @@ public:
                                 int *ystart, int *yend) const = 0;
     virtual void UpdateDisplay(int x0, int y0, int x1, int y1, float splatScale = 1.f);
     virtual void WriteImage(float splatScale = 1.f) = 0;
-    virtual void WriteImage(const string &pathname, float splatScale = 1.f) = 0;
+    virtual void WriteImage(const string &pathname, float splatScale = 1.f) {
+      Severe("Unimplemented Film::WriteImage(pathname, splatScale) called");
+    }
+    virtual void Save() {
+      Severe("Unimplemented Film::Save() called");
+    }
+    virtual void Revert() {
+      Severe("Unimplemented Film::Revert() called");
+    }
 
     // Film Public Data
     const int xResolution, yResolution;
